@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>eBay Split Search Controller</title>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      color: #222;
+      text-align: center;
+    }
+
+    .box {
+      max-width: 900px;
+      margin: 60px auto;
+      background: white;
+      padding: 30px;
+      border-radius: 14px;
+      box-shadow: 0 3px 12px rgba(0,0,0,0.15);
+    }
+
+    h1 {
+      margin-top: 0;
+    }
+
+    #mainSearch {
+      width: 90%;
+      max-width: 750px;
+      font-size: 28px;
+      padding: 16px;
+      border: 3px solid #222;
+      border-radius: 12px;
+      text-align: center;
+    }
+
+    button {
+      font-size: 18px;
+      padding: 12px 18px;
+      margin: 8px;
+      cursor: pointer;
+      border-radius: 8px;
+      border: none;
+      background: #222;
+      color: white;
+    }
+
+    .refine-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .refine-row input {
+      width: 320px;
+      font-size: 16px;
+      padding: 12px;
+    }
+
+    .status {
+      margin-top: 15px;
+      color: #555;
+      font-size: 15px;
+    }
+
+    .note {
+      margin-top: 20px;
+      font-size: 14px;
+      color: #666;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="box">
+    <h1>eBay Split Search Controller</h1>
+
+    <input
+      id="mainSearch"
+      type="text"
+      placeholder="Scan barcode or type title / ISBN / UPC"
+      autofocus
+      autocomplete="off"
+    />
+
+    <br />
+
+    <button onclick="searchBoth()">Search Both Windows</button>
+    <button onclick="clearMain()">Clear</button>
+
+    <div class="refine-row">
+      <div>
+        <input id="liveRefine" placeholder="Refine live only" />
+        <br />
+        <button onclick="searchLiveOnly()">Update Live Window</button>
+      </div>
+
+      <div>
+        <input id="soldRefine" placeholder="Refine sold only" />
+        <br />
+        <button onclick="searchSoldOnly()">Update Sold Window</button>
+      </div>
+    </div>
+
+    <div class="status" id="status">
+      Ready. Scan a barcode and both eBay windows will open/update.
+    </div>
+
+    <div class="note">
+      First search may require allowing popups for this GitHub Pages site.
+      After that, the same two windows should keep updating.
+    </div>
+  </div>
+
+<script>
+  const mainSearch = document.getElementById("mainSearch");
+  const liveRefine = document.getElementById("liveRefine");
+  const soldRefine = document.getElementById("soldRefine");
+  const statusBox = document.getElementById("status");
+
+  let liveWindow = null;
+  let soldWindow = null;
+  let scanTimer = null;
+  let lastSearch = "";
+
+  function encodeQuery(q) {
+    return encodeURIComponent(q.trim());
+  }
+
+  function liveUrl(query) {
+    return "https://www.ebay.com/sch/i.html?_nkw=" + encodeQuery(query);
+  }
+
+  function soldUrl(query) {
+    return "https://www.ebay.com/sch/i.html?_nkw=" + encodeQuery(query) + "&LH_Sold=1&LH_Complete=1";
+  }
+
+  function openOrUpdateWindow(existingWindow, url, name, leftPosition) {
+    const width = Math.floor(screen.availWidth / 2);
+    const height = screen.availHeight;
+
+    const features =
+      "popup=yes" +
+      ",width=" + width +
+      ",height=" + height +
+      ",left=" + leftPosition +
+      ",top=0" +
+      ",resizable=yes" +
+      ",scrollbars=yes";
+
+    if (existingWindow && !existingWindow.closed) {
+      existingWindow.location.href = url;
+      existingWindow.focus();
+      return existingWindow;
+    } else {
+      return window.open(url, name, features);
+    }
+  }
+
+  function searchBoth() {
+    const query = mainSearch.value.trim();
+    if (!query) return;
+
+    lastSearch = query;
+
+    const halfWidth = Math.floor(screen.availWidth / 2);
+
+    liveWindow = openOrUpdateWindow(
+      liveWindow,
+      liveUrl(query),
+      "eBayLiveListings",
+      0
+    );
+
+    soldWindow = openOrUpdateWindow(
+      soldWindow,
+      soldUrl(query),
+      "eBaySoldListings",
+      halfWidth
+    );
+
+    liveRefine.value = query;
+    soldRefine.value = query;
+
+    statusBox.textContent = "Searching both windows for: " + query;
+
+    refocusMain();
+  }
+
+  function searchLiveOnly() {
+    const query = liveRefine.value.trim();
+    if (!query) return;
+
+    liveWindow = openOrUpdateWindow(
+      liveWindow,
+      liveUrl(query),
+      "eBayLiveListings",
+      0
+    );
+
+    statusBox.textContent = "Updated live window: " + query;
+    refocusMain();
+  }
+
+  function searchSoldOnly() {
+    const query = soldRefine.value.trim();
+    if (!query) return;
+
+    const halfWidth = Math.floor(screen.availWidth / 2);
+
+    soldWindow = openOrUpdateWindow(
+      soldWindow,
+      soldUrl(query),
+      "eBaySoldListings",
+      halfWidth
+    );
+
+    statusBox.textContent = "Updated sold window: " + query;
+    refocusMain();
+  }
+
+  function clearMain() {
+    mainSearch.value = "";
+    liveRefine.value = "";
+    soldRefine.value = "";
+    statusBox.textContent = "Cleared. Ready for next scan.";
+    refocusMain();
+  }
+
+  function refocusMain() {
+    setTimeout(() => {
+      mainSearch.focus();
+      mainSearch.select();
+    }, 300);
+  }
+
+  mainSearch.addEventListener("input", () => {
+    clearTimeout(scanTimer);
+
+    scanTimer = setTimeout(() => {
+      const value = mainSearch.value.trim();
+
+      if (value.length >= 8 && value !== lastSearch) {
+        searchBoth();
+      }
+    }, 400);
+  });
+
+  mainSearch.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      searchBoth();
+    }
+  });
+
+  liveRefine.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      searchLiveOnly();
+    }
+  });
+
+  soldRefine.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      searchSoldOnly();
+    }
+  });
+
+  window.addEventListener("load", () => {
+    refocusMain();
+  });
+
+  setInterval(() => {
+    if (document.activeElement !== liveRefine && document.activeElement !== soldRefine) {
+      mainSearch.focus();
+    }
+  }, 2000);
+</script>
+
+</body>
+</html>
