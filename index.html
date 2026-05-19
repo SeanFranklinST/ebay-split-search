@@ -51,6 +51,7 @@
     .status {
       margin-top: 15px;
       color: #555;
+      font-weight: bold;
     }
   </style>
 </head>
@@ -69,8 +70,8 @@
 
   <br>
 
+  <button onclick="launchWindows()">Launch / Reset Windows</button>
   <button onclick="searchBoth()">Search Both</button>
-  <button onclick="openBlankWindows()">Launch / Reset Windows</button>
   <button onclick="clearSearch()">Clear</button>
 
   <div class="small">
@@ -84,11 +85,13 @@
   </div>
 
   <div class="status" id="status">
-    Ready. Click "Launch / Reset Windows" first, then search.
+    Step 1: Click “Launch / Reset Windows” first.
   </div>
 </div>
 
 <script>
+let liveWindow = null;
+let soldWindow = null;
 let scanTimer = null;
 let lastSearch = "";
 let scanStartTime = 0;
@@ -107,67 +110,86 @@ function ebaySold(q) {
   return "https://www.ebay.com/sch/i.html?_nkw=" + encodeURIComponent(q) + "&LH_Sold=1&LH_Complete=1";
 }
 
-function windowFeatures(side) {
+function launchWindows() {
   const half = Math.floor(screen.availWidth / 2);
 
-  if (side === "left") {
-    return `width=${half},height=${screen.availHeight},left=0,top=0,resizable=yes,scrollbars=yes`;
+  liveWindow = window.open(
+    "about:blank",
+    "EBAY_LIVE_WINDOW",
+    `width=${half},height=${screen.availHeight},left=0,top=0,resizable=yes,scrollbars=yes`
+  );
+
+  soldWindow = window.open(
+    "about:blank",
+    "EBAY_SOLD_WINDOW",
+    `width=${half},height=${screen.availHeight},left=${half},top=0,resizable=yes,scrollbars=yes`
+  );
+
+  if (!liveWindow || !soldWindow) {
+    statusBox.textContent = "Popup blocked. Allow popups for this site, then click Launch again.";
+    return;
   }
 
-  return `width=${half},height=${screen.availHeight},left=${half},top=0,resizable=yes,scrollbars=yes`;
-}
-
-function openBlankWindows() {
-  window.open("about:blank", "EBAY_LIVE_WINDOW", windowFeatures("left"));
-  window.open("about:blank", "EBAY_SOLD_WINDOW", windowFeatures("right"));
-
-  statusBox.textContent = "Windows launched. Return to this page and search.";
+  statusBox.textContent = "Windows launched. Return here and scan/type your search.";
   refocusMain();
 }
 
-function openLive(url) {
-  window.open(url, "EBAY_LIVE_WINDOW", windowFeatures("left"));
-}
+function windowsReady() {
+  if (!liveWindow || liveWindow.closed || !soldWindow || soldWindow.closed) {
+    statusBox.textContent = "Click Launch / Reset Windows first, then search again.";
+    return false;
+  }
 
-function openSold(url) {
-  window.open(url, "EBAY_SOLD_WINDOW", windowFeatures("right"));
+  return true;
 }
 
 function searchBoth() {
   const q = mainSearch.value.trim();
+
   if (!q) return;
+  if (!windowsReady()) return;
 
   lastSearch = q;
 
-  openLive(ebayLive(q));
-  openSold(ebaySold(q));
+  liveWindow.location.href = ebayLive(q);
+  soldWindow.location.href = ebaySold(q);
 
   liveRefine.value = q;
   soldRefine.value = q;
 
-  statusBox.textContent = "Searching both: " + q;
-
   mainSearch.value = "";
+
+  scanStartTime = 0;
+  lastInputTime = 0;
+
+  statusBox.textContent = "Updated both windows: " + q;
+
   refocusMain();
 }
 
 function searchLiveOnly() {
   const q = liveRefine.value.trim();
+
   if (!q) return;
+  if (!windowsReady()) return;
 
-  openLive(ebayLive(q));
+  liveWindow.location.href = ebayLive(q);
 
-  statusBox.textContent = "Live updated: " + q;
+  statusBox.textContent = "Updated live window: " + q;
+
   refocusMain();
 }
 
 function searchSoldOnly() {
   const q = soldRefine.value.trim();
+
   if (!q) return;
+  if (!windowsReady()) return;
 
-  openSold(ebaySold(q));
+  soldWindow.location.href = ebaySold(q);
 
-  statusBox.textContent = "Sold updated: " + q;
+  statusBox.textContent = "Updated sold window: " + q;
+
   refocusMain();
 }
 
@@ -176,11 +198,12 @@ function clearSearch() {
   liveRefine.value = "";
   soldRefine.value = "";
 
+  lastSearch = "";
   scanStartTime = 0;
   lastInputTime = 0;
-  lastSearch = "";
 
   statusBox.textContent = "Cleared. Ready for next search.";
+
   refocusMain();
 }
 
@@ -229,13 +252,6 @@ mainSearch.addEventListener("input", () => {
 mainSearch.addEventListener("keydown", e => {
   if (e.key === "Enter") {
     e.preventDefault();
-
-    setTimeout(() => {
-      const q = mainSearch.value.trim();
-      if (q.length > 0) {
-        searchBoth();
-      }
-    }, 100);
   }
 });
 
