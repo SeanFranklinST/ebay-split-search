@@ -96,6 +96,8 @@ let liveWindow = null;
 let soldWindow = null;
 let scanTimer = null;
 let lastSearch = "";
+let scanStartTime = 0;
+let lastInputTime = 0;
 
 const mainSearch = document.getElementById("mainSearch");
 const liveRefine = document.getElementById("liveRefine");
@@ -111,7 +113,6 @@ function ebaySold(q) {
 }
 
 function launchWindows() {
-
   const half = Math.floor(screen.availWidth / 2);
 
   liveWindow = window.open(
@@ -135,7 +136,6 @@ function launchWindows() {
 }
 
 function makeSureWindowsExist() {
-
   if (
     !liveWindow ||
     liveWindow.closed ||
@@ -147,7 +147,6 @@ function makeSureWindowsExist() {
 }
 
 function searchBoth() {
-
   const q = mainSearch.value.trim();
 
   if (!q) return;
@@ -168,7 +167,6 @@ function searchBoth() {
 }
 
 function searchLiveOnly() {
-
   const q = liveRefine.value.trim();
 
   if (!q) return;
@@ -183,7 +181,6 @@ function searchLiveOnly() {
 }
 
 function searchSoldOnly() {
-
   const q = soldRefine.value.trim();
 
   if (!q) return;
@@ -198,10 +195,12 @@ function searchSoldOnly() {
 }
 
 function clearSearch() {
-
   mainSearch.value = "";
   liveRefine.value = "";
   soldRefine.value = "";
+
+  scanStartTime = 0;
+  lastInputTime = 0;
 
   statusBox.textContent = "Cleared. Ready for next scan.";
 
@@ -209,7 +208,6 @@ function clearSearch() {
 }
 
 function refocusMain() {
-
   setTimeout(() => {
     window.focus();
     mainSearch.focus();
@@ -218,69 +216,68 @@ function refocusMain() {
 }
 
 mainSearch.addEventListener("input", () => {
-
   clearTimeout(scanTimer);
 
   const q = mainSearch.value.trim();
+  const now = Date.now();
 
-  // Instant search for likely barcode scans: ISBN-10, ISBN-13, UPC, EAN
-  if (/^\d{10,14}$/.test(q) && q !== lastSearch) {
+  if (q.length === 1) {
+    scanStartTime = now;
+  }
+
+  const totalInputTime = now - scanStartTime;
+  const timeSinceLastInput = lastInputTime ? now - lastInputTime : 9999;
+
+  lastInputTime = now;
+
+  const likelyBarcodeScan =
+    /^\d{10,14}$/.test(q) &&
+    totalInputTime > 0 &&
+    totalInputTime < 700 &&
+    timeSinceLastInput < 100;
+
+  if (likelyBarcodeScan && q !== lastSearch) {
     searchBoth();
     return;
   }
 
-  // Typed searches wait 3 seconds after you stop typing
   scanTimer = setTimeout(() => {
-
     const typedQuery = mainSearch.value.trim();
 
-    if (typedQuery.length >= 10 && typedQuery !== lastSearch) {
+    if (typedQuery.length >= 3 && typedQuery !== lastSearch) {
       searchBoth();
     }
-
   }, 3000);
-
 });
 
 mainSearch.addEventListener("keydown", e => {
-
   if (e.key === "Enter") {
-
     e.preventDefault();
-
     searchBoth();
   }
 });
 
 liveRefine.addEventListener("keydown", e => {
-
   if (e.key === "Enter") {
-
     e.preventDefault();
-
     searchLiveOnly();
   }
 });
 
 soldRefine.addEventListener("keydown", e => {
-
   if (e.key === "Enter") {
-
     e.preventDefault();
-
     searchSoldOnly();
   }
 });
 
 setInterval(() => {
-
   if (
     document.activeElement !== liveRefine &&
     document.activeElement !== soldRefine
   ) {
     mainSearch.focus();
   }
-
 }, 1000);
 
 window.onload = refocusMain;
