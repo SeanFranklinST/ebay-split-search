@@ -1,288 +1,290 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>eBay Split Search Controller</title>
+  <meta charset="UTF-8">
+  <title>eBay Barcode Split Search</title>
 
   <style>
     body {
-      margin: 0;
       font-family: Arial, sans-serif;
-      background: #f4f4f4;
-      color: #222;
+      background: #f3f3f3;
       text-align: center;
+      padding: 40px;
     }
 
     .box {
-      max-width: 900px;
-      margin: 60px auto;
       background: white;
+      max-width: 850px;
+      margin: auto;
       padding: 30px;
       border-radius: 14px;
-      box-shadow: 0 3px 12px rgba(0,0,0,0.15);
-    }
-
-    h1 {
-      margin-top: 0;
+      box-shadow: 0 3px 12px rgba(0,0,0,.15);
     }
 
     #mainSearch {
       width: 90%;
-      max-width: 750px;
-      font-size: 28px;
-      padding: 16px;
+      font-size: 30px;
+      padding: 18px;
+      text-align: center;
       border: 3px solid #222;
       border-radius: 12px;
-      text-align: center;
     }
 
     button {
       font-size: 18px;
-      padding: 12px 18px;
+      padding: 13px 20px;
       margin: 8px;
-      cursor: pointer;
-      border-radius: 8px;
       border: none;
+      border-radius: 8px;
       background: #222;
       color: white;
+      cursor: pointer;
     }
 
-    .refine-row {
-      display: flex;
-      gap: 10px;
-      margin-top: 20px;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
-
-    .refine-row input {
+    .small input {
       width: 320px;
-      font-size: 16px;
       padding: 12px;
+      font-size: 16px;
+      margin-top: 15px;
     }
 
     .status {
       margin-top: 15px;
       color: #555;
-      font-size: 15px;
-    }
-
-    .note {
-      margin-top: 20px;
-      font-size: 14px;
-      color: #666;
-      line-height: 1.5;
     }
   </style>
 </head>
 
 <body>
 
-  <div class="box">
-    <h1>eBay Split Search Controller</h1>
+<div class="box">
 
-    <input
-      id="mainSearch"
-      type="text"
-      placeholder="Scan barcode or type title / ISBN / UPC"
-      autofocus
-      autocomplete="off"
-    />
+  <h1>eBay Split Search</h1>
 
-    <br />
+  <input
+    id="mainSearch"
+    placeholder="Scan barcode / ISBN / UPC / title"
+    autofocus
+    autocomplete="off"
+  >
 
-    <button onclick="searchBoth()">Search Both Windows</button>
-    <button onclick="clearMain()">Clear</button>
+  <br>
 
-    <div class="refine-row">
-      <div>
-        <input id="liveRefine" placeholder="Refine live only" />
-        <br />
-        <button onclick="searchLiveOnly()">Update Live Window</button>
-      </div>
+  <button onclick="searchBoth()">Search Both</button>
+  <button onclick="launchWindows()">Launch / Reset Windows</button>
+  <button onclick="clearSearch()">Clear</button>
 
-      <div>
-        <input id="soldRefine" placeholder="Refine sold only" />
-        <br />
-        <button onclick="searchSoldOnly()">Update Sold Window</button>
-      </div>
-    </div>
-
-    <div class="status" id="status">
-      Ready. Scan a barcode and both eBay windows will open/update.
-    </div>
-
-    <div class="note">
-      First search may require allowing popups for this GitHub Pages site.
-      After that, the same two windows should keep updating.
-    </div>
+  <div class="small">
+    <input id="liveRefine" placeholder="Refine live listings only">
+    <button onclick="searchLiveOnly()">Live Only</button>
   </div>
 
+  <div class="small">
+    <input id="soldRefine" placeholder="Refine sold listings only">
+    <button onclick="searchSoldOnly()">Sold Only</button>
+  </div>
+
+  <div class="status" id="status">
+    Ready. Click "Launch / Reset Windows" first.
+  </div>
+
+</div>
+
 <script>
-  const mainSearch = document.getElementById("mainSearch");
-  const liveRefine = document.getElementById("liveRefine");
-  const soldRefine = document.getElementById("soldRefine");
-  const statusBox = document.getElementById("status");
 
-  let liveWindow = null;
-  let soldWindow = null;
-  let scanTimer = null;
-  let lastSearch = "";
+let liveWindow = null;
+let soldWindow = null;
+let scanTimer = null;
+let lastSearch = "";
 
-  function encodeQuery(q) {
-    return encodeURIComponent(q.trim());
+const mainSearch = document.getElementById("mainSearch");
+const liveRefine = document.getElementById("liveRefine");
+const soldRefine = document.getElementById("soldRefine");
+const statusBox = document.getElementById("status");
+
+function ebayLive(q) {
+  return "https://www.ebay.com/sch/i.html?_nkw=" + encodeURIComponent(q);
+}
+
+function ebaySold(q) {
+  return "https://www.ebay.com/sch/i.html?_nkw=" + encodeURIComponent(q) + "&LH_Sold=1&LH_Complete=1";
+}
+
+function launchWindows() {
+
+  const half = Math.floor(screen.availWidth / 2);
+
+  liveWindow = window.open(
+    "about:blank",
+    "EBAY_LIVE_WINDOW",
+    `width=${half},height=${screen.availHeight},left=0,top=0,resizable=yes,scrollbars=yes`
+  );
+
+  soldWindow = window.open(
+    "about:blank",
+    "EBAY_SOLD_WINDOW",
+    `width=${half},height=${screen.availHeight},left=${half},top=0,resizable=yes,scrollbars=yes`
+  );
+
+  if (liveWindow) liveWindow.opener = null;
+  if (soldWindow) soldWindow.opener = null;
+
+  statusBox.textContent = "Windows launched. Ready for search.";
+
+  refocusMain();
+}
+
+function makeSureWindowsExist() {
+
+  if (
+    !liveWindow ||
+    liveWindow.closed ||
+    !soldWindow ||
+    soldWindow.closed
+  ) {
+    launchWindows();
+  }
+}
+
+function searchBoth() {
+
+  const q = mainSearch.value.trim();
+
+  if (!q) return;
+
+  makeSureWindowsExist();
+
+  lastSearch = q;
+
+  liveWindow.location.href = ebayLive(q);
+  soldWindow.location.href = ebaySold(q);
+
+  liveRefine.value = q;
+  soldRefine.value = q;
+
+  statusBox.textContent = "Searching both: " + q;
+
+  refocusMain();
+}
+
+function searchLiveOnly() {
+
+  const q = liveRefine.value.trim();
+
+  if (!q) return;
+
+  makeSureWindowsExist();
+
+  liveWindow.location.href = ebayLive(q);
+
+  statusBox.textContent = "Live updated: " + q;
+
+  refocusMain();
+}
+
+function searchSoldOnly() {
+
+  const q = soldRefine.value.trim();
+
+  if (!q) return;
+
+  makeSureWindowsExist();
+
+  soldWindow.location.href = ebaySold(q);
+
+  statusBox.textContent = "Sold updated: " + q;
+
+  refocusMain();
+}
+
+function clearSearch() {
+
+  mainSearch.value = "";
+  liveRefine.value = "";
+  soldRefine.value = "";
+
+  statusBox.textContent = "Cleared. Ready for next scan.";
+
+  refocusMain();
+}
+
+function refocusMain() {
+
+  setTimeout(() => {
+    window.focus();
+    mainSearch.focus();
+    mainSearch.select();
+  }, 300);
+}
+
+mainSearch.addEventListener("input", () => {
+
+  clearTimeout(scanTimer);
+
+  const q = mainSearch.value.trim();
+
+  // Instant search for likely barcode scans: ISBN-10, ISBN-13, UPC, EAN
+  if (/^\d{10,14}$/.test(q) && q !== lastSearch) {
+    searchBoth();
+    return;
   }
 
-  function liveUrl(query) {
-    return "https://www.ebay.com/sch/i.html?_nkw=" + encodeQuery(query);
-  }
+  // Typed searches wait 3 seconds after you stop typing
+  scanTimer = setTimeout(() => {
 
-  function soldUrl(query) {
-    return "https://www.ebay.com/sch/i.html?_nkw=" + encodeQuery(query) + "&LH_Sold=1&LH_Complete=1";
-  }
+    const typedQuery = mainSearch.value.trim();
 
-  function openOrUpdateWindow(existingWindow, url, name, leftPosition) {
-    const width = Math.floor(screen.availWidth / 2);
-    const height = screen.availHeight;
-
-    const features =
-      "popup=yes" +
-      ",width=" + width +
-      ",height=" + height +
-      ",left=" + leftPosition +
-      ",top=0" +
-      ",resizable=yes" +
-      ",scrollbars=yes";
-
-    if (existingWindow && !existingWindow.closed) {
-      existingWindow.location.href = url;
-      existingWindow.focus();
-      return existingWindow;
-    } else {
-      return window.open(url, name, features);
-    }
-  }
-
-  function searchBoth() {
-    const query = mainSearch.value.trim();
-    if (!query) return;
-
-    lastSearch = query;
-
-    const halfWidth = Math.floor(screen.availWidth / 2);
-
-    liveWindow = openOrUpdateWindow(
-      liveWindow,
-      liveUrl(query),
-      "eBayLiveListings",
-      0
-    );
-
-    soldWindow = openOrUpdateWindow(
-      soldWindow,
-      soldUrl(query),
-      "eBaySoldListings",
-      halfWidth
-    );
-
-    liveRefine.value = query;
-    soldRefine.value = query;
-
-    statusBox.textContent = "Searching both windows for: " + query;
-
-    refocusMain();
-  }
-
-  function searchLiveOnly() {
-    const query = liveRefine.value.trim();
-    if (!query) return;
-
-    liveWindow = openOrUpdateWindow(
-      liveWindow,
-      liveUrl(query),
-      "eBayLiveListings",
-      0
-    );
-
-    statusBox.textContent = "Updated live window: " + query;
-    refocusMain();
-  }
-
-  function searchSoldOnly() {
-    const query = soldRefine.value.trim();
-    if (!query) return;
-
-    const halfWidth = Math.floor(screen.availWidth / 2);
-
-    soldWindow = openOrUpdateWindow(
-      soldWindow,
-      soldUrl(query),
-      "eBaySoldListings",
-      halfWidth
-    );
-
-    statusBox.textContent = "Updated sold window: " + query;
-    refocusMain();
-  }
-
-  function clearMain() {
-    mainSearch.value = "";
-    liveRefine.value = "";
-    soldRefine.value = "";
-    statusBox.textContent = "Cleared. Ready for next scan.";
-    refocusMain();
-  }
-
-  function refocusMain() {
-    setTimeout(() => {
-      mainSearch.focus();
-      mainSearch.select();
-    }, 300);
-  }
-
-  mainSearch.addEventListener("input", () => {
-    clearTimeout(scanTimer);
-
-    scanTimer = setTimeout(() => {
-      const value = mainSearch.value.trim();
-
-      if (value.length >= 8 && value !== lastSearch) {
-        searchBoth();
-      }
-    }, 400);
-  });
-
-  mainSearch.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
+    if (typedQuery.length >= 10 && typedQuery !== lastSearch) {
       searchBoth();
     }
-  });
 
-  liveRefine.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      searchLiveOnly();
-    }
-  });
+  }, 3000);
 
-  soldRefine.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      searchSoldOnly();
-    }
-  });
+});
 
-  window.addEventListener("load", () => {
-    refocusMain();
-  });
+mainSearch.addEventListener("keydown", e => {
 
-  setInterval(() => {
-    if (document.activeElement !== liveRefine && document.activeElement !== soldRefine) {
-      mainSearch.focus();
-    }
-  }, 2000);
+  if (e.key === "Enter") {
+
+    e.preventDefault();
+
+    searchBoth();
+  }
+});
+
+liveRefine.addEventListener("keydown", e => {
+
+  if (e.key === "Enter") {
+
+    e.preventDefault();
+
+    searchLiveOnly();
+  }
+});
+
+soldRefine.addEventListener("keydown", e => {
+
+  if (e.key === "Enter") {
+
+    e.preventDefault();
+
+    searchSoldOnly();
+  }
+});
+
+setInterval(() => {
+
+  if (
+    document.activeElement !== liveRefine &&
+    document.activeElement !== soldRefine
+  ) {
+    mainSearch.focus();
+  }
+
+}, 1000);
+
+window.onload = refocusMain;
+
 </script>
 
 </body>
